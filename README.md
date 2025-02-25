@@ -83,5 +83,5 @@ func check_steps_coroutine():
 	When exporting a Godot project for iOS with the `HealthKitPlugin`, the linker command can fail with an `Undefined symbols for architecture arm64` error related to `ClassDB::bind_methodfi` and `Object::get_argument_options`. To bypass this error, try unchecking the "Export with Debug" option when choosing a folder to export your project.
 
 	> __NOTE:__
-	> This plugin doesn't have separate versions for debug/release. Feel free to fork and submit a PR with improvements.
+	> The reason for the error is that plugin doesn't have separate versions for debug/release. Feel free to fork and submit a PR with improvements.
 
