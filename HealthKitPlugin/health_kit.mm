@@ -5,6 +5,7 @@
 
 HealthKit *HealthKit::instance = NULL;
 HKHealthStore *health_store = NULL;
+std::map<String, int> monthly_steps;
 
 int today_steps_walked = 0;
 int total_steps_walked = 0;
@@ -12,9 +13,11 @@ int total_steps_walked = 0;
 void HealthKit::_bind_methods() {
     ClassDB::bind_method(D_METHOD("run_today_steps_query"), &HealthKit::run_today_steps_walked_query);
     ClassDB::bind_method(D_METHOD("run_total_steps_query"), &HealthKit::run_total_steps_walked_query);
+    ClassDB::bind_method(D_METHOD("run_monthly_steps_query"), &HealthKit::run_monthly_steps_walked_query); // NEW
     ClassDB::bind_method(D_METHOD("get_today_steps_walked"), &HealthKit::get_today_steps_walked);
     ClassDB::bind_method(D_METHOD("get_total_steps_walked"), &HealthKit::get_total_steps_walked);
-    
+    ClassDB::bind_method(D_METHOD("get_monthly_steps_walked_dict"), &HealthKit::get_monthly_steps_walked_dict); // NEW
+    ClassDB::bind_method(D_METHOD("get_monthly_steps_walked_array"), &HealthKit::get_monthly_steps_walked_array); // NEW
 }
 
 HealthKit *HealthKit::get_singleton() {
@@ -42,6 +45,7 @@ HealthKit::HealthKit() {
         NSLog(@"Is health data completion success: %i", success);
         run_today_steps_walked_query();
         run_total_steps_walked_query();
+        run_monthly_steps_walked_query();
     }];
 }
 
@@ -119,6 +123,66 @@ void HealthKit::run_total_steps_walked_query() {
     [health_store executeQuery:query];
 }
 
+void HealthKit::run_monthly_steps_walked_query() {
+    HKQuantityType *type = [HKSampleType quantityTypeForIdentifier:HKQuantityTypeIdentifierStepCount];
+    NSCalendar *calendar = [NSCalendar currentCalendar];
+    NSDate *now = [NSDate date];
+
+    NSDate *startDate = [calendar dateByAddingUnit:NSCalendarUnitDay value:-30 toDate:now options:0];
+    startDate = [calendar startOfDayForDate:startDate];
+
+    NSDate *anchorDate = [calendar startOfDayForDate:now];
+
+    NSPredicate *predicate = [HKQuery predicateForSamplesWithStartDate:startDate endDate:now options:HKQueryOptionStrictStartDate];
+
+    NSDateComponents *interval = [[NSDateComponents alloc] init];
+    interval.day = 1;
+
+    HKStatisticsCollectionQuery *query = [[HKStatisticsCollectionQuery alloc]
+                                          initWithQuantityType:type
+                                          quantitySamplePredicate:predicate
+                                          options:HKStatisticsOptionCumulativeSum
+                                          anchorDate:anchorDate
+                                          intervalComponents:interval];
+
+    query.initialResultsHandler = ^(HKStatisticsCollectionQuery * _Nonnull query, HKStatisticsCollection * _Nullable results, NSError * _Nullable error) {
+        if (error != nil) {
+            NSLog(@"Error fetching monthly steps: %@", error);
+            return;
+        }
+
+        monthly_steps.clear();
+
+        [results enumerateStatisticsFromDate:startDate toDate:now withBlock:^(HKStatistics * _Nonnull statistics, BOOL * _Nonnull stop) {
+            if (statistics.sumQuantity) {
+                double steps = [statistics.sumQuantity doubleValueForUnit:[HKUnit countUnit]];
+                NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+                [formatter setDateFormat:@"yyyy-MM-dd"];
+                String dateStr = [NSString stringWithString:[formatter stringFromDate:statistics.startDate]].UTF8String;
+                monthly_steps[dateStr] = (int)steps;
+                NSLog(@"Steps on %@: %d", [formatter stringFromDate:statistics.startDate], (int)steps);
+            }
+        }];
+    };
+
+    [health_store executeQuery:query];
+}
+
+Dictionary HealthKit::get_monthly_steps_walked_dict() {
+    Dictionary steps_data;
+    for (const auto& entry : monthly_steps) {
+        steps_data[entry.first] = entry.second;
+    }
+    return steps_data;
+}
+
+Array HealthKit::get_monthly_steps_walked_array() {
+    Array steps_list;
+    for (const auto& entry : monthly_steps) {
+        steps_list.append(entry.second);
+    }
+    return steps_list;
+}
 
 HealthKit::~HealthKit() {
 }
