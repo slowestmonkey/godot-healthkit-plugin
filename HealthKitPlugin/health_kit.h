@@ -14,14 +14,13 @@ class HealthKit : public Object {
 
 public:
 
-    int get_today_steps_walked();
-    int get_total_steps_walked();
-    Dictionary get_monthly_steps_walked_dict();
-    Array get_monthly_steps_walked_array();
+    int get_today_steps();
+    int get_total_steps();
+    Dictionary get_period_steps_dict();
 
     void run_today_steps_walked_query();
     void run_total_steps_walked_query();
-    void run_monthly_steps_walked_query();
+    void run_period_steps_query(int days);
     
     static HealthKit *get_singleton();
 
@@ -29,9 +28,7 @@ public:
     ~HealthKit();
     
 private:
-    std::map<String, int> monthly_steps;
+    std::map<String, int> period_steps;
 };
-
-
 
 #endif
