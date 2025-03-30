@@ -142,18 +142,22 @@ void HealthKit::run_period_steps_query(int days) {
             return;
         }
 
-    period_steps.clear();
+        period_steps.clear();
 
         [results enumerateStatisticsFromDate:startDate toDate:now withBlock:^(HKStatistics * _Nonnull statistics, BOOL * _Nonnull stop) {
             if (statistics.sumQuantity) {
                 double steps = [statistics.sumQuantity doubleValueForUnit:[HKUnit countUnit]];
                 NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
                 [formatter setDateFormat:@"yyyy-MM-dd"];
-                String dateStr = [NSString stringWithString:[formatter stringFromDate:statistics.startDate]].UTF8String;
-                period_steps[dateStr] = (int)steps;
-                NSLog(@"Steps on %@: %d", [formatter stringFromDate:statistics.startDate], (int)steps);
+                NSString *dateStr = [formatter stringFromDate:statistics.startDate];
+                period_steps[dateStr.UTF8String] = (int)steps;
             }
         }];
+
+        for (const auto& entry : period_steps) {
+            NSString *key = [NSString stringWithUTF8String:entry.first.utf8().get_data()];
+            NSLog(@"Period steps entry: %@ -> %d", key, entry.second);
+        }
     };
 
     [health_store executeQuery:query];
