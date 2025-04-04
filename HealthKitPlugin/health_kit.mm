@@ -3,7 +3,6 @@
 #include <HealthKit/HealthKit.h>
 
 HealthKit *HealthKit::instance = NULL;
-HKHealthStore *health_store = NULL;
 std::map<String, int> period_steps;
 
 int today_steps = 0;
@@ -27,18 +26,25 @@ HealthKit::HealthKit() {
     NSLog(@"In HealthKit constructor");
     ERR_FAIL_COND(instance != NULL);
     instance = this;
-    health_store = [[HKHealthStore alloc] init];
     
-    NSLog(@"Is health data available: %i", [HKHealthStore isHealthDataAvailable]);
+    if (![HKHealthStore isHealthDataAvailable]) {
+        NSLog(@"Health data is not available on this device");
+        return;
+    }
     
-    [HKQuantityType quantityTypeForIdentifier:HKQuantityTypeIdentifierStepCount];
+    HKHealthStore* store = [[HKHealthStore alloc] init];
+    health_store = (void*)CFBridgingRetain(store);
     
     NSSet<HKSampleType*> *read_types = [NSSet setWithObject:
                                         [HKQuantityType quantityTypeForIdentifier: HKQuantityTypeIdentifierStepCount]];
     
-    [health_store requestAuthorizationToShareTypes:NULL readTypes:read_types
-                                        completion:^(BOOL success, NSError * _Nullable error) {
-        NSLog(@"Is health data completion success: %i", success);
+    [store requestAuthorizationToShareTypes:NULL readTypes:read_types
+                                completion:^(BOOL success, NSError * _Nullable error) {
+        if (!success) {
+            NSLog(@"Health data authorization failed: %@", error);
+            return;
+        }
+        NSLog(@"Health data authorization success");
         run_today_steps_walked_query();
         run_total_steps_walked_query();
     }];
@@ -54,8 +60,10 @@ int HealthKit::get_total_steps() {
     return total_steps;
 }
 
-
 void HealthKit::run_today_steps_walked_query() {
+    if (!health_store) return;
+    HKHealthStore* store = (__bridge HKHealthStore*)health_store;
+
     HKQuantityType *type = [HKSampleType quantityTypeForIdentifier:HKQuantityTypeIdentifierStepCount];
     
     NSDate *today = [NSDate date];
@@ -78,12 +86,13 @@ void HealthKit::run_today_steps_walked_query() {
         }
     }];
     
-    
-    [health_store executeQuery:query];
+    [store executeQuery:query];
 }
 
-
 void HealthKit::run_total_steps_walked_query() {
+    if (!health_store) return;
+    HKHealthStore* store = (__bridge HKHealthStore*)health_store;
+
     NSDateComponents *components = [[NSDateComponents alloc] init];
     [components setDay:1]; // Monday
     [components setMonth:1]; // May
@@ -111,10 +120,13 @@ void HealthKit::run_total_steps_walked_query() {
         }
     }];
     
-    [health_store executeQuery:query];
+    [store executeQuery:query];
 }
 
 void HealthKit::run_period_steps_query(int days) {
+    if (!health_store) return;
+    HKHealthStore* store = (__bridge HKHealthStore*)health_store;
+
     HKQuantityType *type = [HKSampleType quantityTypeForIdentifier:HKQuantityTypeIdentifierStepCount];
     NSCalendar *calendar = [NSCalendar currentCalendar];
     NSDate *now = [NSDate date];
@@ -160,7 +172,7 @@ void HealthKit::run_period_steps_query(int days) {
         }
     };
 
-    [health_store executeQuery:query];
+    [store executeQuery:query];
 }
 
 Dictionary HealthKit::get_period_steps_dict() {
@@ -172,4 +184,11 @@ Dictionary HealthKit::get_period_steps_dict() {
 }
 
 HealthKit::~HealthKit() {
+    if (health_store) {
+        CFBridgingRelease(health_store);
+        health_store = nullptr;
+    }
+    if (instance == this) {
+        instance = nullptr;
+    }
 }

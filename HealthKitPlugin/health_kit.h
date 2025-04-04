@@ -29,6 +29,7 @@ public:
     
 private:
     std::map<String, int> period_steps;
+    void* health_store; // Store HKHealthStore as void* for header compatibility
 };
 
 #endif
